@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f8fafc" />
+  <meta name="description" content="Seguimiento de lectura bíblica con progreso guardado en el navegador." />
+  <title>Seguimiento bíblico</title>
+
+  <!-- Aplica el tema antes del primer pintado para evitar parpadeos. -->
+  <script>
+    (function () {
+      "use strict";
+      try {
+        var stored = localStorage.getItem("seguimiento-biblico-theme");
+        var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme =
+          stored === "light" || stored === "dark" ? stored : prefersDark ? "dark" : "light";
+      } catch (error) {
+        document.documentElement.dataset.theme = "light";
+      }
+    })();
+  </script>
+
+  <style>
+    :root {
+      color-scheme: light;
+
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-soft: #f1f5f9;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-soft: #dbeafe;
+      --success: #16a34a;
+      --success-soft: #dcfce7;
+      --success-text: #166534;
+      --danger: #dc2626;
+      --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+      --backdrop: rgba(15, 23, 42, 0.35);
+      --radius: 16px;
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+
+      --bg: #0b1120;
+      --surface: #131c2e;
+      --surface-soft: #1b263b;
+      --border: #26334a;
+      --border-strong: #3b4a63;
+      --text: #e6edf7;
+      --muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-soft: rgba(59, 130, 246, 0.2);
+      --success: #22c55e;
+      --success-soft: rgba(34, 197, 94, 0.16);
+      --success-text: #86efac;
+      --danger: #f87171;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      --backdrop: rgba(3, 7, 18, 0.65);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    h1, h2, h3, p { margin-top: 0; }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 50px;
+    }
+
+    header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 26px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--primary);
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+    }
+
+    .subtitle {
+      max-width: 680px;
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .header-tools {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .button {
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 14px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 700;
+      transition: border-color 0.2s ease, transform 0.2s ease,
+        background-color 0.2s ease;
+    }
+
+    .button:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+    }
+
+    .button.primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .button.danger { color: var(--danger); }
+
+    .icon-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      padding: 0;
+    }
+
+    .icon { width: 18px; height: 18px; }
+    .icon-sun { display: none; }
+    :root[data-theme="dark"] .icon-sun { display: block; }
+    :root[data-theme="dark"] .icon-moon { display: none; }
+
+    .segmented {
+      display: inline-flex;
+      overflow: hidden;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .segmented button {
+      min-height: 40px;
+      border: 0;
+      padding: 0 12px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .segmented button.active {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .button:focus-visible,
+    .chapter:focus-visible,
+    .segmented button:focus-visible {
+      outline: 3px solid var(--primary-soft);
+      outline-offset: 2px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .stat-card { padding: 18px; }
+
+    .stat-label {
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    .stat-value {
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }
+
+    .progress-wrapper {
+      height: 8px;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--surface-soft);
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--primary);
+      transition: width 0.3s ease;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr 210px auto;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .input, .select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+      padding: 0 13px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .input:focus, .select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-soft);
+    }
+
+    .books-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-card { padding: 20px; }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .section-heading h2 {
+      margin-bottom: 0;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+
+    .section-count {
+      color: var(--muted);
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+
+    .books-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .book-card {
+      padding: 18px;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .book-card:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-2px);
+    }
+
+    .book-card.hidden { display: none; }
+
+    .book-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .book-name {
+      margin-bottom: 5px;
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    .book-meta {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    .book-percentage {
+      color: var(--primary);
+      font-weight: 800;
+    }
+
+    .book-progress {
+      height: 6px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--surface-soft);
+    }
+
+    .book-progress > div {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--success);
+      transition: width 0.3s ease;
+    }
+
+    .chapters {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+      gap: 8px;
+    }
+
+    .chapter {
+      aspect-ratio: 1;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 750;
+      transition: border-color 0.18s ease, background-color 0.18s ease,
+        color 0.18s ease;
+    }
+
+    .chapter:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .chapter.read {
+      border-color: var(--success);
+      background: var(--success-soft);
+      color: var(--success-text);
+    }
+
+    .empty-state {
+      display: none;
+      padding: 40px 20px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .footer {
+      margin-top: 32px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    .footer p { margin: 0 0 4px; }
+
+    .footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .footer a:hover { text-decoration: underline; }
+
+    dialog {
+      width: min(440px, calc(100% - 32px));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25);
+    }
+
+    dialog::backdrop { background: var(--backdrop); }
+
+    .dialog-content { padding: 24px; }
+
+    .dialog-content h2 {
+      margin-bottom: 8px;
+      font-size: 1.15rem;
+    }
+
+    .dialog-content p {
+      margin-bottom: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .report-dialog { width: min(760px, calc(100% - 32px)); }
+
+    .report-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .report-header h2 { margin: 0; font-size: 1.15rem; }
+
+    .report-meta {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .report-meta strong { color: var(--text); }
+
+    .report-scroll {
+      max-height: 58vh;
+      margin-top: 14px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .report-table th,
+    .report-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+
+    .report-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--surface-soft);
+      color: var(--muted);
+      font-size: 0.74rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .report-table tbody tr:last-child td { border-bottom: 0; }
+
+    .report-table .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .report-table tr.total td {
+      border-top: 2px solid var(--border);
+      background: var(--surface-soft);
+      font-weight: 800;
+    }
+
+    @media (max-width: 850px) {
+      header { flex-direction: column; }
+      .header-actions { align-items: flex-start; }
+      .header-tools { justify-content: flex-start; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .toolbar .button { grid-column: 1 / -1; }
+      .books-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        width: min(100% - 22px, 1180px);
+        padding-top: 20px;
+      }
+      .summary-grid { gap: 9px; }
+      .stat-card { padding: 14px; }
+      .stat-label { font-size: 0.78rem; }
+      .stat-value { font-size: 1.35rem; }
+      .toolbar { grid-template-columns: 1fr; }
+      .toolbar .button { grid-column: auto; }
+      .section-card, .book-card { padding: 15px; }
+      .dialog-content { padding: 18px; }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <p class="eyebrow" data-i18n="eyebrow">Plan de lectura personal</p>
+        <h1 data-i18n="title">Seguimiento bíblico</h1>
+        <p class="subtitle" data-i18n="subtitle">
+          Marca cada capítulo leído de la Biblia.
+          Tu progreso se guarda automáticamente en este navegador.
+        </p>
+      </div>
+
+      <div class="header-actions">
+        <div class="header-tools">
+          <div class="segmented" id="languageSwitch" role="group" aria-label="Idioma">
+            <button type="button" data-lang="es" class="active" aria-pressed="true">ES</button>
+            <button type="button" data-lang="en" aria-pressed="false">EN</button>
+          </div>
+
+          <button
+            class="button icon-button"
+            id="themeToggle"
+            type="button"
+            aria-label="Cambiar tema"
+            aria-pressed="false"
+          >
+            <svg class="icon icon-moon" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+            <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="header-tools">
+          <button class="button" id="reportButton" type="button" data-i18n="openReport">Reporte</button>
+          <button class="button" id="exportButton" type="button" data-i18n="exportProgress">Exportar</button>
+          <button class="button" id="importButton" type="button" data-i18n="importProgress">Importar</button>
+          <button class="button danger" id="resetButton" type="button" data-i18n="resetProgress">Reiniciar</button>
+        </div>
+
+        <input id="fileInput" type="file" accept="application/json" hidden />
+      </div>
+    </header>
+
+    <section class="summary-grid" aria-label="Resumen del progreso">
+      <article class="card stat-card">
+        <div class="stat-label" data-i18n="totalProgress">Progreso total</div>
+        <div class="stat-value" id="totalPercentage">0%</div>
+        <div class="progress-wrapper">
+          <div class="progress-bar" id="totalProgress"></div>
+        </div>
+      </article>
+
+      <article class="card stat-card">
+        <div class="stat-label" data-i18n="chaptersReadLabel">Capítulos leídos</div>
+        <div class="stat-value" id="chaptersRead">0 / 1189</div>
+      </article>
+
+      <article class="card stat-card">
+        <div class="stat-label" data-i18n="booksCompletedLabel">Libros completados</div>
+        <div class="stat-value" id="booksCompleted">0 / 66</div>
+      </article>
+
+      <article class="card stat-card">
+        <div class="stat-label" data-i18n="lastReadLabel">Último capítulo</div>
+        <div class="stat-value" id="lastRead">Ninguno</div>
+      </article>
+    </section>
+
+    <section class="toolbar" aria-label="Herramientas">
+      <input
+        class="input"
+        id="searchInput"
+        type="search"
+        placeholder="Buscar un libro..."
+        aria-label="Buscar un libro"
+        data-i18n-placeholder="searchPlaceholder"
+        data-i18n-aria-label="searchPlaceholder"
+      />
+
+      <select class="select" id="testamentFilter" aria-label="Filtrar por testamento">
+        <option value="all" data-i18n="filterAll">Toda la Biblia</option>
+        <option value="old" data-i18n="filterOld">Antiguo Testamento</option>
+        <option value="new" data-i18n="filterNew">Nuevo Testamento</option>
+      </select>
+
+      <button class="button primary" id="markAllButton" type="button" data-i18n="markVisibleAsRead">
+        Marcar visibles como leídos
+      </button>
+    </section>
+
+    <section class="books-container" id="booksContainer"></section>
+
+    <div class="empty-state" id="emptyState" data-i18n="emptyState">
+      No se encontraron libros con esos filtros.
+    </div>
+
+    <footer class="footer">
+      <p data-i18n="footerNote">
+        Los datos se almacenan únicamente en este dispositivo.
+      </p>
+      <p>
+        <span data-i18n="developedBy">Desarrollado por</span>:
+        <strong>Jesús Hernández</strong> ·
+        <a href="mailto:info.mergerconsulting@gmail.com">info.mergerconsulting@gmail.com</a>
+      </p>
+      <p>
+        © 2026 <span data-i18n="rightsReserved">Todos los derechos reservados.</span>
+      </p>
+    </footer>
+  </main>
+
+  <dialog id="confirmDialog">
+    <div class="dialog-content">
+      <h2 data-i18n="resetDialogTitle">¿Reiniciar progreso?</h2>
+      <p data-i18n="resetDialogMessage">
+        Se eliminarán todos los capítulos marcados como leídos.
+        Esta acción no se puede deshacer.
+      </p>
+      <div class="dialog-actions">
+        <button class="button" id="cancelResetButton" type="button" data-i18n="cancel">Cancelar</button>
+        <button class="button danger" id="confirmResetButton" type="button" data-i18n="confirmReset">Reiniciar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="reportDialog" class="report-dialog">
+    <div class="dialog-content">
+      <div class="report-header">
+        <h2 data-i18n="reportTitle">Reporte de lectura</h2>
+        <button class="button" id="closeReportButton" type="button" data-i18n="reportClose">Cerrar</button>
+      </div>
+      <p class="report-meta">
+        <span data-i18n="reportDate">Fecha</span>:
+        <strong id="reportDateValue"></strong>
+      </p>
+      <p class="report-meta" id="reportSummary"></p>
+      <div class="report-scroll">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th data-i18n="reportBook">Libro</th>
+              <th class="num" data-i18n="reportChaptersRead">Capítulos leídos</th>
+              <th class="num">%</th>
+            </tr>
+          </thead>
+          <tbody id="reportTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    (() => {
+      "use strict";
+
+      /* 1. CONSTANTES */
+     
+
+      const STORAGE_KEYS = Object.freeze({
+        progress: "seguimiento-biblico-v1",
+        theme: "seguimiento-biblico-theme",
+        language: "seguimiento-biblico-language",
+      });
+
+      const SUPPORTED_LANGUAGES = Object.freeze(["es", "en"]);
+
+      /**
+       * `name` es la clave interna (compatible con progreso ya guardado)
+       * `nameEn` es solo para mostrar y buscar en inglés.
+       */
+      const BIBLE_BOOKS = Object.freeze([
+        { name: "Génesis",        nameEn: "Genesis",         chapters: 50,  testament: "old" },
+        { name: "Éxodo",          nameEn: "Exodus",          chapters: 40,  testament: "old" },
+        { name: "Levítico",       nameEn: "Leviticus",       chapters: 27,  testament: "old" },
+        { name: "Números",        nameEn: "Numbers",         chapters: 36,  testament: "old" },
+        { name: "Deuteronomio",   nameEn: "Deuteronomy",     chapters: 34,  testament: "old" },
+        { name: "Josué",          nameEn: "Joshua",          chapters: 24,  testament: "old" },
+        { name: "Jueces",         nameEn: "Judges",          chapters: 21,  testament: "old" },
+        { name: "Rut",            nameEn: "Ruth",            chapters: 4,   testament: "old" },
+        { name: "1 Samuel",       nameEn: "1 Samuel",        chapters: 31,  testament: "old" },
+        { name: "2 Samuel",       nameEn: "2 Samuel",        chapters: 24,  testament: "old" },
+        { name: "1 Reyes",        nameEn: "1 Kings",         chapters: 22,  testament: "old" },
+        { name: "2 Reyes",        nameEn: "2 Kings",         chapters: 25,  testament: "old" },
+        { name: "1 Crónicas",     nameEn: "1 Chronicles",    chapters: 29,  testament: "old" },
+        { name: "2 Crónicas",     nameEn: "2 Chronicles",    chapters: 36,  testament: "old" },
+        { name: "Esdras",         nameEn: "Ezra",            chapters: 10,  testament: "old" },
+        { name: "Nehemías",       nameEn: "Nehemiah",        chapters: 13,  testament: "old" },
+        { name: "Ester",          nameEn: "Esther",          chapters: 10,  testament: "old" },
+        { name: "Job",            nameEn: "Job",             chapters: 42,  testament: "old" },
+        { name: "Salmos",         nameEn: "Psalms",          chapters: 150, testament: "old" },
+        { name: "Proverbios",     nameEn: "Proverbs",        chapters: 31,  testament: "old" },
+        { name: "Eclesiastés",    nameEn: "Ecclesiastes",    chapters: 12,  testament: "old" },
+        { name: "Cantares",       nameEn: "Song of Songs",   chapters: 8,   testament: "old" },
+        { name: "Isaías",         nameEn: "Isaiah",          chapters: 66,  testament: "old" },
+        { name: "Jeremías",       nameEn: "Jeremiah",        chapters: 52,  testament: "old" },
+        { name: "Lamentaciones",  nameEn: "Lamentations",    chapters: 5,   testament: "old" },
+        { name: "Ezequiel",       nameEn: "Ezekiel",         chapters: 48,  testament: "old" },
+        { name: "Daniel",         nameEn: "Daniel",          chapters: 12,  testament: "old" },
+        { name: "Oseas",          nameEn: "Hosea",           chapters: 14,  testament: "old" },
+        { name: "Joel",           nameEn: "Joel",            chapters: 3,   testament: "old" },
+        { name: "Amós",           nameEn: "Amos",            chapters: 9,   testament: "old" },
+        { name: "Abdías",         nameEn: "Obadiah",         chapters: 1,   testament: "old" },
+        { name: "Jonás",          nameEn: "Jonah",           chapters: 4,   testament: "old" },
+        { name: "Miqueas",        nameEn: "Micah",           chapters: 7,   testament: "old" },
+        { name: "Nahúm",          nameEn: "Nahum",           chapters: 3,   testament: "old" },
+        { name: "Habacuc",        nameEn: "Habakkuk",        chapters: 3,   testament: "old" },
+        { name: "Sofonías",       nameEn: "Zephaniah",       chapters: 3,   testament: "old" },
+        { name: "Hageo",          nameEn: "Haggai",          chapters: 2,   testament: "old" },
+        { name: "Zacarías",       nameEn: "Zechariah",       chapters: 14,  testament: "old" },
+        { name: "Malaquías",      nameEn: "Malachi",         chapters: 4,   testament: "old" },
+
+        { name: "Mateo",              nameEn: "Matthew",           chapters: 28, testament: "new" },
+        { name: "Marcos",             nameEn: "Mark",              chapters: 16, testament: "new" },
+        { name: "Lucas",              nameEn: "Luke",              chapters: 24, testament: "new" },
+        { name: "Juan",               nameEn: "John",              chapters: 21, testament: "new" },
+        { name: "Hechos",             nameEn: "Acts",              chapters: 28, testament: "new" },
+        { name: "Romanos",            nameEn: "Romans",            chapters: 16, testament: "new" },
+        { name: "1 Corintios",        nameEn: "1 Corinthians",     chapters: 16, testament: "new" },
+        { name: "2 Corintios",        nameEn: "2 Corinthians",     chapters: 13, testament: "new" },
+        { name: "Gálatas",            nameEn: "Galatians",         chapters: 6,  testament: "new" },
+        { name: "Efesios",            nameEn: "Ephesians",         chapters: 6,  testament: "new" },
+        { name: "Filipenses",         nameEn: "Philippians",       chapters: 4,  testament: "new" },
+        { name: "Colosenses",         nameEn: "Colossians",        chapters: 4,  testament: "new" },
+        { name: "1 Tesalonicenses",   nameEn: "1 Thessalonians",   chapters: 5,  testament: "new" },
+        { name: "2 Tesalonicenses",   nameEn: "2 Thessalonians",   chapters: 3,  testament: "new" },
+        { name: "1 Timoteo",          nameEn: "1 Timothy",         chapters: 6,  testament: "new" },
+        { name: "2 Timoteo",          nameEn: "2 Timothy",         chapters: 4,  testament: "new" },
+        { name: "Tito",               nameEn: "Titus",             chapters: 3,  testament: "new" },
+        { name: "Filemón",            nameEn: "Philemon",          chapters: 1,  testament: "new" },
+        { name: "Hebreos",            nameEn: "Hebrews",           chapters: 13, testament: "new" },
+        { name: "Santiago",           nameEn: "James",             chapters: 5,  testament: "new" },
+        { name: "1 Pedro",            nameEn: "1 Peter",           chapters: 5,  testament: "new" },
+        { name: "2 Pedro",            nameEn: "2 Peter",           chapters: 3,  testament: "new" },
+        { name: "1 Juan",             nameEn: "1 John",            chapters: 5,  testament: "new" },
+        { name: "2 Juan",             nameEn: "2 John",            chapters: 1,  testament: "new" },
+        { name: "3 Juan",             nameEn: "3 John",            chapters: 1,  testament: "new" },
+        { name: "Judas",              nameEn: "Jude",              chapters: 1,  testament: "new" },
+        { name: "Apocalipsis",        nameEn: "Revelation",        chapters: 22, testament: "new" },
+      ]);
+
+      const TOTAL_CHAPTERS = BIBLE_BOOKS.reduce((total, book) => total + book.chapters, 0);
+      const BOOKS_BY_NAME = new Map(BIBLE_BOOKS.map((book) => [book.name, book]));
+
+
+      /* 2. TRADUCCIONES */
+       
+
+      const TRANSLATIONS = Object.freeze({
+        es: {
+          documentTitle: "Seguimiento bíblico",
+          eyebrow: "Plan de lectura personal",
+          title: "Seguimiento bíblico",
+          subtitle:
+            "Marca cada capítulo leído de la Biblia. Tu progreso se guarda automáticamente en este navegador.",
+
+          exportProgress: "Exportar",
+          importProgress: "Importar",
+          resetProgress: "Reiniciar",
+          openReport: "Reporte",
+
+          totalProgress: "Progreso total",
+          chaptersReadLabel: "Capítulos leídos",
+          booksCompletedLabel: "Libros completados",
+          lastReadLabel: "Último capítulo",
+          none: "Ninguno",
+
+          searchPlaceholder: "Buscar un libro...",
+          filterAll: "Toda la Biblia",
+          filterOld: "Antiguo Testamento",
+          filterNew: "Nuevo Testamento",
+          markVisibleAsRead: "Marcar visibles como leídos",
+          emptyState: "No se encontraron libros con esos filtros.",
+
+          oldTestament: "Antiguo Testamento",
+          newTestament: "Nuevo Testamento",
+
+          footerNote: "Los datos se almacenan únicamente en este dispositivo.",
+          developedBy: "Desarrollado por",
+          rightsReserved: "Todos los derechos reservados.",
+
+          resetDialogTitle: "¿Reiniciar progreso?",
+          resetDialogMessage:
+            "Se eliminarán todos los capítulos marcados como leídos. Esta acción no se puede deshacer.",
+          cancel: "Cancelar",
+          confirmReset: "Reiniciar",
+
+          reportTitle: "Reporte de lectura",
+          reportDate: "Fecha",
+          reportBook: "Libro",
+          reportChaptersRead: "Capítulos leídos",
+          reportClose: "Cerrar",
+          reportSummary: (read, total, percentage) =>
+            `Has leído ${read} de ${total} capítulos (${percentage}%).`,
+
+          toggleTheme: "Cambiar tema",
+          languageLabel: "Idioma",
+
+          importSuccess: "Progreso importado correctamente.",
+          importError: "No se pudo importar el archivo. Verifica que sea un respaldo válido.",
+
+          bookMeta: (read, total) => `${read} de ${total} capítulos`,
+          booksCount: (count) => `${count} libros`,
+          chapterTitle: (book, chapter) => `${book}, capítulo ${chapter}`,
+          chapterAria: (book, chapter, read) =>
+            `${book}, capítulo ${chapter}, ${read ? "leído" : "no leído"}`,
+        },
+
+        en: {
+          documentTitle: "Bible Tracker",
+          eyebrow: "Personal reading plan",
+          title: "Bible tracker",
+          subtitle:
+            "Mark every chapter you read from the Bible. Your progress is saved automatically in this browser.",
+
+          exportProgress: "Export",
+          importProgress: "Import",
+          resetProgress: "Reset",
+          openReport: "Report",
+
+          totalProgress: "Overall progress",
+          chaptersReadLabel: "Chapters read",
+          booksCompletedLabel: "Books completed",
+          lastReadLabel: "Last chapter",
+          none: "None",
+
+          searchPlaceholder: "Search a book...",
+          filterAll: "Whole Bible",
+          filterOld: "Old Testament",
+          filterNew: "New Testament",
+          markVisibleAsRead: "Mark visible as read",
+          emptyState: "No books found with those filters.",
+
+          oldTestament: "Old Testament",
+          newTestament: "New Testament",
+
+          footerNote: "Data is stored only on this device.",
+          developedBy: "Developed by",
+          rightsReserved: "All rights reserved.",
+
+          resetDialogTitle: "Reset progress?",
+          resetDialogMessage:
+            "All chapters marked as read will be removed. This action cannot be undone.",
+          cancel: "Cancel",
+          confirmReset: "Reset",
+
+          reportTitle: "Reading report",
+          reportDate: "Date",
+          reportBook: "Book",
+          reportChaptersRead: "Chapters read",
+          reportClose: "Close",
+          reportSummary: (read, total, percentage) =>
+            `You have read ${read} of ${total} chapters (${percentage}%).`,
+
+          toggleTheme: "Toggle theme",
+          languageLabel: "Language",
+
+          importSuccess: "Progress imported successfully.",
+          importError: "The file could not be imported. Please verify it is a valid backup.",
+
+          bookMeta: (read, total) => `${read} of ${total} chapters`,
+          booksCount: (count) => `${count} books`,
+          chapterTitle: (book, chapter) => `${book}, chapter ${chapter}`,
+          chapterAria: (book, chapter, read) =>
+            `${book}, chapter ${chapter}, ${read ? "read" : "not read"}`,
+        },
+      });
+
+
+      /* 3. REFERENCIAS DEL DOM */
+
+      const $ = (id) => document.getElementById(id);
+
+      const el = {
+        booksContainer: $("booksContainer"),
+        emptyState: $("emptyState"),
+        searchInput: $("searchInput"),
+        testamentFilter: $("testamentFilter"),
+        markAllButton: $("markAllButton"),
+        totalPercentage: $("totalPercentage"),
+        totalProgress: $("totalProgress"),
+        chaptersRead: $("chaptersRead"),
+        booksCompleted: $("booksCompleted"),
+        lastRead: $("lastRead"),
+        exportButton: $("exportButton"),
+        importButton: $("importButton"),
+        fileInput: $("fileInput"),
+        resetButton: $("resetButton"),
+        confirmDialog: $("confirmDialog"),
+        cancelResetButton: $("cancelResetButton"),
+        confirmResetButton: $("confirmResetButton"),
+        reportButton: $("reportButton"),
+        reportDialog: $("reportDialog"),
+        closeReportButton: $("closeReportButton"),
+        reportDateValue: $("reportDateValue"),
+        reportSummary: $("reportSummary"),
+        reportTableBody: $("reportTableBody"),
+        themeToggle: $("themeToggle"),
+        languageSwitch: $("languageSwitch"),
+      };
+
+
+      /* 4. ESTADO GLOBAL */
+
+      const bookViews = new Map();
+
+      let currentLanguage = loadLanguage();
+      let currentTheme =
+        document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+
+      let progress = loadProgress();
+      let lastRead = progress.lastRead;
+
+      
+      /* 5. UTILIDADES */
+      
+
+      function normalizeText(text) {
+        return String(text)
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+      }
+
+      function bookKey(bookName, chapterNumber) {
+        return `${bookName}-${chapterNumber}`;
+      }
+
+      function getBookName(book) {
+        return currentLanguage === "en" ? book.nameEn : book.name;
+      }
+
+      function getLocale() {
+        return currentLanguage === "en" ? "en-US" : "es-PR";
+      }
+
+      function formatLongDate(date) {
+        return date.toLocaleDateString(getLocale(), {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+      }
+
+      function formatDateTime(isoString) {
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) return "";
+        return date.toLocaleString(getLocale(), {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+      }
+
+      function t(key, ...args) {
+        const dictionary = TRANSLATIONS[currentLanguage] || TRANSLATIONS.es;
+        const value = dictionary[key];
+        if (typeof value === "function") return value(...args);
+        if (typeof value === "string") return value;
+        return key;
+      }
+
+     
+      /* 6. PERSISTENCIA */
+      
+
+      function sanitizeChapters(rawChapters) {
+        const clean = {};
+        if (!rawChapters || typeof rawChapters !== "object") return clean;
+
+        Object.keys(rawChapters).forEach((key) => {
+          const match = /^(.+)-(\d+)$/.exec(key);
+          if (!match) return;
+
+          const [, bookName, chapterText] = match;
+          const chapter = Number(chapterText);
+          const book = BOOKS_BY_NAME.get(bookName);
+
+          if (!book) return;
+          if (!Number.isInteger(chapter) || chapter < 1 || chapter > book.chapters) return;
+
+          const entry = rawChapters[key];
+          clean[key] = entry && typeof entry === "object"
+            ? entry
+            : { readAt: new Date().toISOString() };
+        });
+
+        return clean;
+      }
+
+      function sanitizeLastRead(rawLastRead) {
+        if (!rawLastRead || typeof rawLastRead !== "object") return null;
+
+        const book = BOOKS_BY_NAME.get(rawLastRead.book);
+        const chapter = Number(rawLastRead.chapter);
+
+        if (!book) return null;
+        if (!Number.isInteger(chapter) || chapter < 1 || chapter > book.chapters) return null;
+
+        return {
+          book: book.name,
+          chapter,
+          readAt: typeof rawLastRead.readAt === "string"
+            ? rawLastRead.readAt
+            : new Date().toISOString(),
+        };
+      }
+
+      function loadProgress() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.progress);
+          if (!raw) return { chapters: {}, lastRead: null };
+          const parsed = JSON.parse(raw);
+          return {
+            chapters: sanitizeChapters(parsed.chapters),
+            lastRead: sanitizeLastRead(parsed.lastRead),
+          };
+        } catch (error) {
+          console.warn("No se pudo cargar el progreso guardado.", error);
+          return { chapters: {}, lastRead: null };
+        }
+      }
+
+      function saveProgress() {
+        try {
+          localStorage.setItem(
+            STORAGE_KEYS.progress,
+            JSON.stringify({ chapters: progress.chapters, lastRead })
+          );
+        } catch (error) {
+          console.warn("No se pudo guardar el progreso.", error);
+        }
+      }
+
+      function loadLanguage() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEYS.language);
+          if (SUPPORTED_LANGUAGES.includes(saved)) return saved;
+        } catch (error) { /* noop */ }
+        return "es";
+      }
+
+      function saveLanguage(language) {
+        try { localStorage.setItem(STORAGE_KEYS.language, language); } catch (error) { /* noop */ }
+      }
+
+      function saveTheme(theme) {
+        try { localStorage.setItem(STORAGE_KEYS.theme, theme); } catch (error) { /* noop */ }
+      }
+
+      /* 7. CONSULTAS DE PROGRESO */
+
+      function isChapterRead(bookName, chapterNumber) {
+        return Boolean(progress.chapters[bookKey(bookName, chapterNumber)]);
+      }
+
+      function getBookReadCount(book) {
+        let count = 0;
+        for (let chapter = 1; chapter <= book.chapters; chapter += 1) {
+          if (isChapterRead(book.name, chapter)) count += 1;
+        }
+        return count;
+      }
+
+      function getTotalReadCount() {
+        return BIBLE_BOOKS.reduce((total, book) => total + getBookReadCount(book), 0);
+      }
+
+      function getCompletedBooksCount() {
+        return BIBLE_BOOKS.filter((book) => getBookReadCount(book) === book.chapters).length;
+      }
+
+         /* 8. TEMA E IDIOMA */
+      
+
+      function applyTheme() {
+        document.documentElement.dataset.theme = currentTheme;
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute("content", currentTheme === "dark" ? "#0b1120" : "#f8fafc");
+        }
+        el.themeToggle.setAttribute("aria-pressed", String(currentTheme === "dark"));
+        el.themeToggle.setAttribute("aria-label", t("toggleTheme"));
+      }
+
+      function toggleTheme() {
+        currentTheme = currentTheme === "dark" ? "light" : "dark";
+        saveTheme(currentTheme);
+        applyTheme();
+      }
+
+      function applyLanguage() {
+        document.documentElement.lang = currentLanguage;
+        document.title = t("documentTitle");
+
+        document.querySelectorAll("[data-i18n]").forEach((element) => {
+          const value = t(element.dataset.i18n);
+          if (typeof value === "string") element.textContent = value;
+        });
+
+        document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+          element.placeholder = t(element.dataset.i18nPlaceholder);
+        });
+
+        document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+          element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+        });
+
+        el.languageSwitch.querySelectorAll("button[data-lang]").forEach((button) => {
+          const isActive = button.dataset.lang === currentLanguage;
+          button.classList.toggle("active", isActive);
+          button.setAttribute("aria-pressed", String(isActive));
+        });
+
+        el.languageSwitch.setAttribute("aria-label", t("languageLabel"));
+        el.themeToggle.setAttribute("aria-label", t("toggleTheme"));
+      }
+
+      function setLanguage(language) {
+        if (!SUPPORTED_LANGUAGES.includes(language)) return;
+        if (language === currentLanguage) return;
+        currentLanguage = language;
+        saveLanguage(language);
+        applyLanguage();
+        render();
+      }
+
+      /* 9. CONSTRUCCIÓN DE LA UI */
+     
+      function syncChapterButton(button, book, chapterNumber) {
+        const read = isChapterRead(book.name, chapterNumber);
+        const displayName = getBookName(book);
+
+        button.classList.toggle("read", read);
+        button.setAttribute("aria-pressed", String(read));
+        button.setAttribute("aria-label", t("chapterAria", displayName, chapterNumber, read));
+        button.title = t("chapterTitle", displayName, chapterNumber);
+      }
+
+      function createChapterButton(book, chapterNumber) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "chapter";
+        button.dataset.chapter = String(chapterNumber);
+        button.textContent = String(chapterNumber);
+
+        // El capítulo siempre se toca; el estado interno se sincroniza luego.
+        button.addEventListener("click", () => {
+          toggleChapter(book, chapterNumber);
+        });
+
+        syncChapterButton(button, book, chapterNumber);
+        return button;
+      }
+
+      function syncBookCard(book, view) {
+        const readCount = getBookReadCount(book);
+        const percentage = Math.round((readCount / book.chapters) * 100);
+
+        view.metaElement.textContent = t("bookMeta", readCount, book.chapters);
+        view.percentageElement.textContent = `${percentage}%`;
+        view.progressElement.style.width = `${percentage}%`;
+
+        view.chapterButtons.forEach((button, index) => {
+          syncChapterButton(button, book, index + 1);
+        });
+      }
+
+      function createBookCard(book) {
+        const card = document.createElement("article");
+        card.className = "card book-card";
+        card.dataset.bookId = book.name;
+        card.dataset.testament = book.testament;
+        card.dataset.search =
+          `${normalizeText(book.name)} ${normalizeText(book.nameEn)}`;
+
+        const top = document.createElement("div");
+        top.className = "book-top";
+
+        const titleGroup = document.createElement("div");
+
+        const nameElement = document.createElement("div");
+        nameElement.className = "book-name";
+        nameElement.textContent = getBookName(book);
+
+        const metaElement = document.createElement("div");
+        metaElement.className = "book-meta";
+
+        titleGroup.append(nameElement, metaElement);
+
+        const percentageElement = document.createElement("div");
+        percentageElement.className = "book-percentage";
+
+        top.append(titleGroup, percentageElement);
+
+        const progressContainer = document.createElement("div");
+        progressContainer.className = "book-progress";
+
+        const progressElement = document.createElement("div");
+        progressContainer.appendChild(progressElement);
+
+        const chaptersElement = document.createElement("div");
+        chaptersElement.className = "chapters";
+
+        const chapterButtons = [];
+        for (let chapter = 1; chapter <= book.chapters; chapter += 1) {
+          const button = createChapterButton(book, chapter);
+          chapterButtons.push(button);
+          chaptersElement.appendChild(button);
+        }
+
+        card.append(top, progressContainer, chaptersElement);
+
+        const view = {
+          card,
+          metaElement,
+          percentageElement,
+          progressElement,
+          chapterButtons,
+        };
+
+        bookViews.set(book.name, view);
+        syncBookCard(book, view);
+        return card;
+      }
+
+      function createSection(titleKey, testament) {
+        const section = document.createElement("section");
+        section.className = "card section-card";
+        section.dataset.sectionTestament = testament;
+
+        const heading = document.createElement("div");
+        heading.className = "section-heading";
+
+        const titleElement = document.createElement("h2");
+        titleElement.textContent = t(titleKey);
+
+        const books = BIBLE_BOOKS.filter((book) => book.testament === testament);
+
+        const countElement = document.createElement("div");
+        countElement.className = "section-count";
+        countElement.textContent = t("booksCount", books.length);
+
+        heading.append(titleElement, countElement);
+
+        const grid = document.createElement("div");
+        grid.className = "books-grid";
+
+        books.forEach((book) => {
+          grid.appendChild(createBookCard(book));
+        });
+
+        section.append(heading, grid);
+        return section;
+      }
+
+      function render() {
+        bookViews.clear();
+        el.booksContainer.replaceChildren(
+          createSection("oldTestament", "old"),
+          createSection("newTestament", "new")
+        );
+        updateSummary();
+        applyFilters();
+      }
+
+      function updateSummary() {
+        const readCount = getTotalReadCount();
+        const percentage = Math.round((readCount / TOTAL_CHAPTERS) * 100);
+        const completedBooks = getCompletedBooksCount();
+
+        el.totalPercentage.textContent = `${percentage}%`;
+        el.totalProgress.style.width = `${percentage}%`;
+        el.chaptersRead.textContent = `${readCount} / ${TOTAL_CHAPTERS}`;
+        el.booksCompleted.textContent = `${completedBooks} / ${BIBLE_BOOKS.length}`;
+
+        if (lastRead) {
+          const book = BOOKS_BY_NAME.get(lastRead.book);
+          const displayName = book ? getBookName(book) : lastRead.book;
+          el.lastRead.textContent = `${displayName} ${lastRead.chapter}`;
+          el.lastRead.title = formatDateTime(lastRead.readAt);
+        } else {
+          el.lastRead.textContent = t("none");
+          el.lastRead.removeAttribute("title");
+        }
+      }
+
+      
+      /* 10. INTERACCIÓN CON CAPÍTULOS   */
+    
+
+      function toggleChapter(book, chapterNumber) {
+        const key = bookKey(book.name, chapterNumber);
+        const view = bookViews.get(book.name);
+
+        if (progress.chapters[key]) {
+          delete progress.chapters[key];
+        } else {
+          const readAt = new Date().toISOString();
+          progress.chapters[key] = { readAt };
+          lastRead = { book: book.name, chapter: chapterNumber, readAt };
+        }
+
+        saveProgress();
+        if (view) syncBookCard(book, view);
+        updateSummary();
+      }
+
+     
+      /* 11. FILTROS   */
+  
+
+      function applyFilters() {
+        const searchTerm = normalizeText(el.searchInput.value);
+        const testament = el.testamentFilter.value;
+        let visibleBooks = 0;
+
+        el.booksContainer.querySelectorAll(".section-card").forEach((section) => {
+          const sectionTestament = section.dataset.sectionTestament;
+          const testamentMatches =
+            testament === "all" || testament === sectionTestament;
+          let visibleInSection = 0;
+
+          section.querySelectorAll(".book-card").forEach((card) => {
+            const searchMatches =
+              !searchTerm || card.dataset.search.includes(searchTerm);
+            const shouldShow = testamentMatches && searchMatches;
+
+            card.classList.toggle("hidden", !shouldShow);
+
+            if (shouldShow) {
+              visibleInSection += 1;
+              visibleBooks += 1;
+            }
+          });
+
+          section.style.display = visibleInSection > 0 ? "" : "none";
+        });
+
+        el.emptyState.style.display = visibleBooks === 0 ? "block" : "none";
+      }
+
+      function markVisibleAsRead() {
+        const readAt = new Date().toISOString();
+        let touched = false;
+
+        bookViews.forEach((view, bookName) => {
+          if (view.card.classList.contains("hidden")) return;
+
+          const book = BOOKS_BY_NAME.get(bookName);
+          if (!book) return;
+
+          for (let chapter = 1; chapter <= book.chapters; chapter += 1) {
+            progress.chapters[bookKey(book.name, chapter)] = { readAt };
+          }
+
+          lastRead = { book: book.name, chapter: book.chapters, readAt };
+          touched = true;
+        });
+
+        if (!touched) return;
+
+        saveProgress();
+        render();
+      }
+
+      
+      /* 12. REPORTE  */
+     
+
+      function renderReport() {
+        const readCount = getTotalReadCount();
+        const percentage = Math.round((readCount / TOTAL_CHAPTERS) * 100);
+
+        el.reportDateValue.textContent = formatLongDate(new Date());
+        el.reportSummary.textContent = t("reportSummary", readCount, TOTAL_CHAPTERS, percentage);
+
+        const rows = [];
+
+        BIBLE_BOOKS.forEach((book) => {
+          const read = getBookReadCount(book);
+          const pct = Math.round((read / book.chapters) * 100);
+
+          const row = document.createElement("tr");
+          const nameCell = document.createElement("td");
+          nameCell.textContent = getBookName(book);
+          const readCell = document.createElement("td");
+          readCell.className = "num";
+          readCell.textContent = `${read} / ${book.chapters}`;
+          const pctCell = document.createElement("td");
+          pctCell.className = "num";
+          pctCell.textContent = `${pct}%`;
+          row.append(nameCell, readCell, pctCell);
+          rows.push(row);
+        });
+
+        const totalRow = document.createElement("tr");
+        totalRow.className = "total";
+        const totalName = document.createElement("td");
+        totalName.textContent = t("reportTotal", "Total");
+        const totalRead = document.createElement("td");
+        totalRead.className = "num";
+        totalRead.textContent = `${readCount} / ${TOTAL_CHAPTERS}`;
+        const totalPct = document.createElement("td");
+        totalPct.className = "num";
+        totalPct.textContent = `${percentage}%`;
+        totalRow.append(totalName, totalRead, totalPct);
+
+        el.reportTableBody.replaceChildren(...rows, totalRow);
+      }
+
+      function openReport() {
+        renderReport();
+        if (typeof el.reportDialog.showModal === "function") {
+          el.reportDialog.showModal();
+        } else {
+          el.reportDialog.setAttribute("open", "");
+        }
+      }
+
+      function closeReport() {
+        el.reportDialog.close();
+      }
+
+     
+      /* 13. EXPORTAR / IMPORTAR  */
+      
+
+      function exportProgress() {
+        const data = {
+          app: "Seguimiento bíblico",
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          chapters: progress.chapters,
+          lastRead,
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "progreso-biblico.json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function importProgress(file) {
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+          try {
+            const imported = JSON.parse(event.target.result);
+
+            if (!imported || typeof imported.chapters !== "object") {
+              throw new Error("Formato inválido");
+            }
+
+            progress = {
+              chapters: sanitizeChapters(imported.chapters),
+              lastRead: sanitizeLastRead(imported.lastRead),
+            };
+            lastRead = progress.lastRead;
+
+            saveProgress();
+            render();
+            alert(t("importSuccess"));
+          } catch (error) {
+            alert(t("importError"));
+          }
+        };
+
+        reader.readAsText(file);
+      }
+
+      
+      /* 14. CABLEADO DE EVENTOS */
+    
+
+      // Filtros
+      el.searchInput.addEventListener("input", applyFilters);
+      el.testamentFilter.addEventListener("change", applyFilters);
+
+      // Marcar visibles
+      el.markAllButton.addEventListener("click", markVisibleAsRead);
+
+      // Exportar / Importar
+      el.exportButton.addEventListener("click", exportProgress);
+      el.importButton.addEventListener("click", () => el.fileInput.click());
+      el.fileInput.addEventListener("change", (event) => {
+        const file = event.target.files && event.target.files[0];
+        if (file) importProgress(file);
+        event.target.value = "";
+      });
+
+      // Reiniciar
+      el.resetButton.addEventListener("click", () => {
+        if (typeof el.confirmDialog.showModal === "function") {
+          el.confirmDialog.showModal();
+        } else {
+          el.confirmDialog.setAttribute("open", "");
+        }
+      });
+
+      el.cancelResetButton.addEventListener("click", () => el.confirmDialog.close());
+
+      el.confirmResetButton.addEventListener("click", () => {
+        progress = { chapters: {}, lastRead: null };
+        lastRead = null;
+        saveProgress();
+        el.confirmDialog.close();
+        render();
+      });
+
+      // Reporte
+      el.reportButton.addEventListener("click", openReport);
+      el.closeReportButton.addEventListener("click", closeReport);
+
+      // Tema
+      el.themeToggle.addEventListener("click", toggleTheme);
+
+      // Idioma
+      el.languageSwitch.querySelectorAll("button[data-lang]").forEach((button) => {
+        button.addEventListener("click", () => setLanguage(button.dataset.lang));
+      });
+
+      
+      /* 15. INICIALIZACIÓN  */
+     
+
+      applyTheme();
+      applyLanguage();
+      render();
+    })();
+  </script>
+</body>
+</html>
