@@ -2,18 +2,15 @@
 Aplicación web para el seguimiento a la lectura de la Biblia.
 
 🎨  **¿QUÉ TIENE DE NUEVO?**
-
-✅  Sin instalaciones ni registros: abre el HTML y ya.
+✅  Sin instalaciones ni registros.
 ✅  Sin suscripciones ni cuentas.
-✅  5 paletas aesthetic: Aesthetic, Coquette, Dark Academia,
-    Pastel y Minimalista.
+✅  5 paletas de colores.
 ✅  Modo oscuro y claro con un clic.
 ✅  Funciona 100% offline (tras la primera carga).
 ✅  Exporta e importa en JSON para backup.
 ✅  Tú controlas tus datos.
 
 ❓  **PREGUNTAS FRECUENTES**
-
 ▸ ¿Funciona en el móvil?
   Sí, se abre perfectamente en el navegador del móvil. Para uso
   cómodo, guárdalo en la pantalla de inicio.
